@@ -1,0 +1,2498 @@
+{%- doc -%}
+Renders the cart summary totals.
+
+
+
+
+@param {string} [accelerated_checkout_buttons_layout] - { 'vertical' } Forced layout of the additional checkout buttons, instead of relying on platform's layout.
+@param {string} [section_id] - The section ID for cart discount component.
+{%- enddoc -%}
+
+
+
+
+<div class="cart__summary-totals">
+{% # We need to keep this node in place to allow morphing to work properly # %}
+<div class="cart__original-total-container cart-primary-typography">
+  {%- if cart.cart_level_discount_applications.size > 0 -%}
+    <span class="cart__summary-item cart__original-total">
+      <span class="cart__original-total-label">{{ 'content.cart_subtotal' | t }}</span>
+      <span class="cart__original-total-value cart-secondary-typography">
+        {{- cart.original_total_price | money -}}
+      </span>
+    </span>
+    <div class="cart__summary-discounts">
+      <ul
+        class="discounts list-unstyled"
+        role="list"
+        aria-label="{{ 'content.discounts' | t }}"
+      >
+        {%- for discount in cart.cart_level_discount_applications -%}
+          <li class="cart__summary-item cart__discount">
+            <span class="cart__discount-label">
+              {{- 'icon-discount.svg' | inline_asset_content -}}
+              {{ discount.title | escape }}
+            </span>
+            <span class="cart__discount-value cart-secondary-typography"
+              >-{{ discount.total_allocated_amount | money -}}
+            </span>
+          </li>
+        {%- endfor -%}
+      </ul>
+    </div>
+  {%- endif -%}
+</div>
+
+
+<!-- ============================= -->
+<!-- PRACTITIONER MARKUP INSTRUCTIONS -->
+<!-- ============================= -->
+
+
+<div class="markup-instructions">
+ <div class="markup-instructions__header">
+   <h3 class="markup-instructions__title">How Markups Work</h3>
+ </div>
+
+
+ <ul class="markup-instructions__list">
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>Add a markup to products to earn commission.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>Enter your client's email to send them a secure payment link.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>Your client pays and enters their shipping details.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>The order is then shipped directly to your client.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>You'll receive your commission automatically.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>We'll notify you once the order has been paid and shipped.</span>
+   </li>
+
+
+   <li>
+     <span class="markup-instructions__bullet">•</span>
+     <span>
+       Prefer not to add a markup?
+       Simply use the normal checkout process.
+     </span>
+   </li>
+ </ul>
+</div>
+
+
+{% if settings.show_cart_note or settings.show_add_discount_code %}
+  <div class="cart-actions">
+    {% if settings.show_cart_note %}
+      <script
+        type="module"
+        src="{{ 'cart-note.js' | asset_url }}"
+      ></script>
+
+
+
+
+      <cart-note style="display: flex;">
+        <accordion-custom
+          class="cart-note"
+          {% if settings.cart_note_open_by_default %}
+            open-by-default-on-desktop
+            open-by-default-on-mobile
+          {% endif %}
+        >
+          <details
+            class="details"
+            {% if settings.cart_note_open_by_default %}
+              open
+            {% endif %}
+          >
+            <summary class="cart-note__summary">
+              <span class="cart-note__label cart-primary-typography">
+                {{ 'content.seller_note' | t }}
+              </span>
+
+
+
+
+              <span class="svg-wrapper icon-plus">
+                {{- 'icon-plus.svg' | inline_asset_content -}}
+              </span>
+            </summary>
+
+
+
+
+            <div class="details-content cart-note__inner">
+              <label
+                for="cart-note"
+                class="visually-hidden"
+              >
+                {{- 'content.seller_note' | t -}}
+              </label>
+              <textarea
+                form="cart-form"
+                on:input="/updateCartNote"
+                id="cart-note"
+                class="cart-note__instructions"
+                name="note"
+              >{{ cart.note }}</textarea>
+            </div>
+          </details>
+        </accordion-custom>
+      </cart-note>
+    {% endif %}
+    {% if settings.show_cart_note and settings.show_add_discount_code %}
+      <div class="cart-actions__divider"></div>
+    {% endif %}
+    {% if settings.show_add_discount_code %}
+      {% liquid
+        assign discount_codes = cart.cart_level_discount_applications | where: 'type', 'discount_code' | map: 'title'
+        for item in cart.items
+          for allocation in item.line_level_discount_allocations
+            if allocation.discount_application.type == 'discount_code'
+              assign discount_codes = item.line_level_discount_allocations | slice: forloop.index0 | map: 'discount_application' | map: 'title' | concat: discount_codes
+            endif
+          endfor
+        endfor
+
+
+
+
+        assign discount_codes = discount_codes | uniq
+
+
+
+
+        # Evaluate the boolean expression for the disclosure state
+        if discount_codes.size == 0
+          assign disclosure_expanded = false
+        else
+          assign disclosure_expanded = true
+        endif
+      %}
+
+
+
+
+      <accordion-custom class="cart-discount">
+        <details
+          class="details"
+          {% if disclosure_expanded %}
+            open
+          {% endif %}
+        >
+          <summary class="cart-discount__summary">
+            <span class="cart-discount__label cart-primary-typography">{{ 'content.discount' | t }}</span>
+
+
+
+
+            <span class="svg-wrapper icon-plus">
+              {{- 'icon-plus.svg' | inline_asset_content -}}
+            </span>
+          </summary>
+
+
+
+
+          <div class="details-content">
+            <div id="cart-discount-disclosure">
+              <cart-discount-component
+                {% if section_id != blank %}
+                  data-section-id="{{ section_id }}"
+                {% endif %}
+              >
+                <div class="cart-discount__content">
+                  <form
+                    on:submit="/applyDiscount"
+                    onsubmit="return false;"
+                    class="cart-discount__form"
+                  >
+                    <label
+                      for="cart-discount"
+                      class="visually-hidden"
+                    >
+                      {{- 'accessibility.discount' | t -}}
+                    </label>
+                    <input
+                      id="cart-discount"
+                      class="cart-discount__input"
+                      type="text"
+                      name="discount"
+                      size="8"
+                      placeholder="{{ 'content.discount_code' | t }}"
+                      required
+                    >
+                    <button
+                      type="submit"
+                      class="button cart-discount__button"
+                    >
+                      {{ 'actions.apply' | t }}
+                    </button>
+                  </form>
+                </div>
+                <div
+                  class="cart-discount__error hidden"
+                  role="alert"
+                  ref="cartDiscountError"
+                >
+                  <span class="svg-wrapper">
+                    {{- 'icon-error.svg' | inline_asset_content -}}
+                  </span>
+                  <small
+                    class="cart-discount__error-text cart-primary-typography hidden"
+                    ref="cartDiscountErrorDiscountCode"
+                  >
+                    {{ 'content.discount_code_error' | t: code: 'test' }}
+                  </small>
+                  <small
+                    class="cart-discount__error-text cart-primary-typography hidden"
+                    ref="cartDiscountErrorShipping"
+                  >
+                    {{ 'content.shipping_discount_error' | t }}
+                  </small>
+                </div>
+                <ul class="cart-discount__codes">
+                  {% for discount_code in discount_codes %}
+                    <li
+                      class="cart-discount__pill"
+                      data-discount-code="{{ discount_code }}"
+                      aria-label="{{ 'accessibility.discount_applied' | t: code: discount_code }}"
+                    >
+                      <p class="cart-discount__pill-code">
+                        {{ discount_code }}
+                      </p>
+                      <button
+                        type="button"
+                        on:click="/removeDiscount"
+                        class="cart-discount__pill-remove svg-wrapper svg-wrapper--smaller button-unstyled"
+                        aria-label="{{ 'actions.remove_discount' | t: code: discount_code }}"
+                      >
+                        {{- 'icon-filters-close.svg' | inline_asset_content -}}
+                      </button>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </cart-discount-component>
+            </div>
+          </div>
+        </details>
+      </accordion-custom>
+    {% endif %}
+  </div>
+
+
+
+
+{% comment %} -----oodles----- {% endcomment %}
+{% endif %}
+
+
+
+
+<!-- ============================= -->
+<!-- END PRACTITIONER MARKUP       -->
+<!-- ============================= -->
+{% comment %} -----oodles----- {% endcomment %}
+
+
+
+
+{%- liquid
+  if settings.currency_code_enabled_cart_total
+    assign total_price = cart.total_price | money_with_currency
+  else
+    assign total_price = cart.total_price | money
+  endif
+-%}
+
+
+
+
+    <!-- CLIENT EMAIL -->
+  <div class="client-email-section">
+    <label
+      for="client-email"
+      class="client-email-label"
+    >
+      Client Email
+    </label>
+
+
+
+
+    <input
+      type="email"
+      id="client-email"
+      name="client_email"
+      class="client-email-input"
+      placeholder="client@example.com"
+      autocomplete="email"
+    >
+
+
+
+
+    <small class="client-email-help">
+      The invoice and secure payment link will be sent to this email address.
+    </small>
+
+
+
+
+    <p
+      id="client-email-error"
+      class="client-email-error"
+      role="alert"
+      hidden
+    ></p>
+  </div>
+
+
+
+
+<div class="cart__total-container{% if settings.show_installments %} cart__total-container--has-installments{% endif %}">
+  <span
+    class="cart__summary-item cart__total"
+    role="status"
+  >
+    <span class="cart__total-label cart-primary-typography">{{ 'content.cart_estimated_total' | t }}</span>
+    <text-component
+      {% comment %} -----oodles----- {% endcomment %}
+      id="custom-cart-total"
+      {% comment %} -----oodles----- {% endcomment %}
+      ref="cartTotal"
+      value="{{ total_price | strip_html }}"
+      class="cart__total-value cart-secondary-typography"
+      {% comment %} Used by payment_terms web component {% endcomment %}
+      data-cart-subtotal
+    >
+      {{ total_price }}
+    </text-component>
+  </span>
+  {% if settings.show_installments %}
+    <span class="cart__summary-item cart__installments">
+      {% form 'cart', cart %}
+        {{ form | payment_terms }}
+      {% endform %}
+    </span>
+  {% endif %}
+  <div class="cart__summary-item tax-note cart-primary-typography">
+    {% render 'tax-info', has_discounts_enabled: settings.show_add_discount_code %}
+  </div>
+</div>
+</div>
+
+
+
+
+{% comment %} <div
+id="checkout-message"
+data-checkout-message
+hidden
+role="alert"
+style="margin-bottom: 16px;"
+></div> {% endcomment %}
+
+
+
+
+<div
+id="checkout-message"
+data-checkout-message
+hidden
+role="alert"
+class="checkout-message"
+></div>
+
+
+
+
+<div class="cart__ctas">
+<button
+  type="submit"
+  id="checkout"
+  class="cart__checkout-button button"
+  name="checkout"
+  {% if cart == empty %}
+    disabled
+  {% endif %}
+  form="cart-form"
+>
+  <span class="button-text">
+    {{ 'content.checkout' | t }}
+  </span>
+</button>
+
+
+
+
+{% if additional_checkout_buttons and settings.show_accelerated_checkout_buttons %}
+  <div
+    class="
+      additional-checkout-buttons
+      {% if accelerated_checkout_buttons_layout == 'vertical' %}additional-checkout-buttons--vertical{% endif %}
+    "
+  >
+    {{ content_for_additional_checkout_buttons }}
+  </div>
+{% endif %}
+</div>
+
+
+
+
+{% stylesheet %}
+.cart-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-block: 1px solid var(--color-border);
+  padding-block: 0;
+  margin-block-start: var(--margin-3xs);
+}
+
+
+
+
+.cart-actions__divider {
+  border-block-start: 1px solid var(--color-border);
+}
+
+
+
+
+.cart__summary-totals:not(:has(.cart-actions)) {
+  margin-block-start: var(--margin-3xs);
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--margin-xl);
+}
+
+
+
+
+.cart__summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+
+
+.cart__summary-item.tax-note small {
+  font-size: var(--font-size--2xs);
+}
+
+
+
+
+.cart__discount-label {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2xs);
+}
+
+
+
+
+.cart__discount-label svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  display: inline-block;
+}
+
+
+
+
+.cart__original-total-container,
+.cart__total-container {
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+
+.cart__total-container {
+  row-gap: var(--gap-2xs);
+
+
+
+
+  &.cart__total-container--has-installments {
+    row-gap: var(--gap-xs);
+  }
+}
+
+
+
+
+.cart__original-total-container:empty {
+  display: none;
+}
+
+
+
+
+.cart__summary-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xl);
+  width: 100%;
+  border-block-start: none;
+
+
+
+
+  &:has(> :first-child:not(.cart__original-total-container, .cart__total-container)) {
+    padding-block-start: 0;
+    border-block-start: none;
+  }
+
+
+
+
+  @media screen and (min-width: 750px) {
+    padding-block-start: 0;
+  }
+}
+
+
+
+
+.cart__original-total-container,
+.cart__original-total-container * {
+  font-size: var(--font-size--sm);
+}
+
+
+
+
+.cart__total {
+  font-weight: var(--font-weight-bold);
+}
+
+
+
+
+.cart__total-label {
+  font-size: var(--font-size--sm);
+}
+
+
+
+
+.cart__total-value {
+  font-size: var(--font-size--xl);
+
+
+
+
+  @media screen and (max-width: 749px) {
+    font-size: var(--font-size--lg);
+  }
+}
+
+
+
+
+.cart__installments {
+  color: var(--color-foreground);
+  font-size: var(--font-size--2xs);
+}
+
+
+
+
+.cart-note {
+  width: 100%;
+}
+
+
+
+
+@starting-style {
+  .cart-note[open-by-default-on-desktop][open-by-default-on-mobile] .details-content {
+    block-size: auto;
+    opacity: 1;
+    overflow-y: visible;
+  }
+}
+
+
+
+
+.cart-note__inner {
+  padding-block: var(--padding-2xs) var(--padding-sm);
+}
+
+
+
+
+.cart-note__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+
+
+.cart-note__summary:hover {
+  color: rgb(var(--color-foreground-rgb) / var(--opacity-subdued-text));
+}
+
+
+
+
+.cart-note__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-2xs);
+  font-size: var(--font-size--2xs);
+  font-weight: 500;
+}
+
+
+
+
+.cart-note__instructions {
+  color: var(--color-input-text);
+  background-color: var(--color-input-background);
+  border-width: var(--style-border-width-inputs);
+  border-color: var(--color-input-border);
+  transition: box-shadow var(--animation-speed) ease;
+  box-shadow: var(--input-box-shadow);
+  min-height: 5.5rem;
+  min-width: 100%;
+  max-width: 100%;
+  font-size: var(--font-size--sm);
+  padding: max(4px, calc(var(--style-border-radius-inputs) * (1 - cos(45deg))));
+}
+
+
+
+
+.cart-note .svg-wrapper {
+  height: var(--icon-size-sm);
+  width: var(--icon-size-sm);
+  margin: 0;
+}
+
+
+
+
+.cart-note .icon-plus {
+  height: var(--icon-size-xs);
+  width: var(--icon-size-xs);
+}
+
+
+
+
+.cart__ctas {
+  width: 100%;
+  display: grid;
+  gap: var(--checkout-button-gap);
+  grid-auto-flow: row;
+  grid-template-columns: 1fr;
+}
+
+
+
+
+.cart__ctas .cart__checkout-button {
+  width: 100%;
+  height: clamp(25px, var(--height-buy-buttons), 55px);
+  padding-inline: var(--padding-4xl);
+}
+
+
+
+
+.cart-drawer__summary .cart__summary-totals:not(:has(.cart__original-total-container:empty)) {
+  border-block-start: var(--style-border-width) solid var(--color-border);
+  padding-block-start: var(--padding-2xl);
+}
+
+
+
+
+.cart-drawer__summary .cart-note {
+  @media screen and (min-width: 750px) {
+    margin-block-start: var(--margin-3xs);
+  }
+}
+
+
+
+
+.cart-discount__input {
+  background-color: var(--color-input-background);
+  color: var(--color-input-text);
+  border-width: var(--style-border-width-inputs);
+  border-color: var(--color-input-border);
+  border-style: solid;
+  border-radius: var(--style-border-radius-inputs);
+  padding: var(--padding-sm) var(--padding-md);
+  height: 100%;
+  flex-grow: 1;
+  min-width: 0;
+  font-size: var(--font-size--sm);
+}
+
+
+
+
+.cart-discount__input::placeholder {
+  color: rgb(var(--color-input-text-rgb) / var(--opacity-subdued-text));
+}
+
+
+
+
+.cart-discount__pill-code {
+  overflow: hidden;
+  max-width: 100px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+
+
+
+
+.cart-discount {
+  width: 100%;
+}
+
+
+
+
+.cart-discount__codes {
+  display: none;
+  gap: var(--padding-xs);
+  flex-wrap: wrap;
+  list-style: none;
+  padding-inline: 0;
+  margin: 0;
+}
+
+
+
+
+.cart-discount__codes:has(.cart-discount__pill) {
+  display: flex;
+}
+
+
+
+
+.cart-discount__button {
+  height: 100%;
+}
+
+
+
+
+.cart-discount__content {
+  height: calc(var(--button-size) + var(--padding-2xs) + var(--padding-sm));
+}
+
+
+
+
+.cart-discount__pill {
+  display: flex;
+  color: var(--color-foreground);
+  gap: var(--padding-xs);
+  align-items: center;
+  padding: var(--padding-xs) var(--padding-sm);
+  border-radius: var(--style-border-radius-pills);
+  background-color: var(--color-input-background);
+  text-transform: uppercase;
+}
+
+
+
+
+.cart-discount__form {
+  display: flex;
+  gap: var(--padding-md);
+  align-items: center;
+  height: 100%;
+  padding-block: var(--padding-2xs) var(--padding-sm);
+}
+
+
+
+
+:is(.cart-discount__pill-remove, .cart-discount__pill-remove:hover) {
+  --close-icon-opacity: 0.4;
+
+
+
+
+  color: var(--color-foreground);
+  background-color: transparent;
+  pointer-events: all;
+  cursor: pointer;
+  height: 100%;
+}
+
+
+
+
+.cart-discount__error {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding-block: var(--padding-2xs) var(--padding-sm);
+}
+
+
+
+
+.cart-discount__error .svg-wrapper {
+  flex-shrink: 0;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  margin-inline: var(--margin-3xs) var(--margin-xs);
+}
+
+
+
+
+.cart-discount__error-text {
+  margin-block-start: var(--margin-3xs);
+}
+
+
+
+
+.cart-discount {
+  width: 100%;
+}
+
+
+
+
+.cart-discount__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+
+
+.cart-discount__summary:hover {
+  color: rgb(var(--color-foreground-rgb) / var(--opacity-subdued-text));
+}
+
+
+
+
+.cart-discount__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-2xs);
+  font-size: var(--font-size--2xs);
+  font-weight: 500;
+}
+
+
+
+
+/* markup css */
+
+
+
+
+  /* .practitioner-markup {
+  width: 100%;
+  padding-block: var(--padding-md);
+  border-block: 1px solid var(--color-border);
+} */
+
+
+
+
+.markup-title {
+  font-size: var(--font-size--sm);
+  font-weight: 500;
+  margin-bottom: var(--padding-sm);
+}
+
+
+
+
+.markup-input-wrapper label {
+  display: block;
+  font-size: var(--font-size--2xs);
+  margin-bottom: var(--padding-xs);
+}
+
+
+
+
+.markup-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-xs);
+}
+
+
+
+
+.markup-control-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+
+
+#markup-amount {
+  width: 100px;
+  height: 36px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-input-background);
+  color: var(--color-input-text);
+}
+
+
+
+
+/* ==========================================
+ CLIENT EMAIL
+ ========================================== */
+
+
+
+
+.client-email-section {
+width: 100%;
+margin-bottom: var(--margin-lg);
+}
+
+
+
+
+.client-email-label {
+display: block;
+margin-bottom: var(--padding-xs);
+font-size: var(--font-size--sm);
+font-weight: 600;
+}
+
+
+
+
+.client-email-input {
+width: 100%;
+min-height: 44px;
+padding: var(--padding-sm) var(--padding-md);
+background-color: var(--color-input-background);
+color: var(--color-input-text);
+border: var(--style-border-width-inputs) solid var(--color-input-border);
+border-radius: var(--style-border-radius-inputs);
+font-size: var(--font-size--sm);
+box-sizing: border-box;
+}
+
+
+
+
+.client-email-input:focus {
+outline: none;
+border-color: var(--color-foreground);
+}
+
+
+
+
+.client-email-input.client-email-invalid {
+border-color: #c62828;
+}
+
+
+
+
+.client-email-help {
+display: block;
+margin-top: var(--padding-xs);
+font-size: var(--font-size--2xs);
+color: rgb(var(--color-foreground-rgb) / var(--opacity-subdued-text));
+}
+
+
+
+
+.client-email-error {
+margin: var(--padding-xs) 0 0;
+font-size: var(--font-size--2xs);
+color: #c62828;
+}
+
+
+
+
+/* ==========================================
+ CHECKOUT MESSAGE
+ ========================================== */
+
+
+
+
+.checkout-message {
+width: 100%;
+margin-bottom: var(--margin-md);
+padding: var(--padding-md);
+border-radius: var(--style-border-radius-inputs);
+font-size: var(--font-size--sm);
+font-weight: 500;
+line-height: 1.5;
+box-sizing: border-box;
+}
+
+
+
+
+.checkout-message[data-type="success"] {
+background-color: #e8f5e9;
+color: #1b5e20;
+border: 1px solid #a5d6a7;
+}
+
+
+
+
+.checkout-message[data-type="error"] {
+background-color: #ffebee;
+color: #b71c1c;
+border: 1px solid #ef9a9a;
+}
+
+
+
+
+.checkout-message[data-type="info"] {
+background-color: #e3f2fd;
+color: #0d47a1;
+border: 1px solid #90caf9;
+}
+
+
+/* ==========================================
+  MARKUP INSTRUCTIONS - CART SPACING
+  ========================================== */
+
+
+.markup-instructions {
+ width: 100%;
+ margin: 0;
+ padding: var(--padding-md);
+ border: 1px solid var(--color-border);
+ border-radius: var(--style-border-radius-inputs);
+ background-color: var(--color-input-background);
+ box-sizing: border-box;
+}
+
+
+.markup-instructions__header {
+ margin: 0 0 var(--padding-sm);
+}
+
+
+.markup-instructions__title {
+ margin: 0;
+ font-size: var(--font-size--sm);
+ font-weight: 600;
+ line-height: 1.4;
+}
+
+
+.markup-instructions__list {
+ list-style: none;
+ margin: 0;
+ padding: 0;
+ display: flex;
+ flex-direction: column;
+ gap: var(--padding-xs);
+}
+
+
+.markup-instructions__list li {
+ display: flex;
+ align-items: flex-start;
+ gap: var(--padding-xs);
+ margin: 0;
+ padding: 0;
+ font-size: var(--font-size--2xs);
+ line-height: 1.5;
+ color: rgb(var(--color-foreground-rgb) / 0.85);
+}
+
+
+.markup-instructions__bullet {
+ flex-shrink: 0;
+ font-weight: 700;
+}
+
+
+
+
+{% endstylesheet %}
+
+
+
+
+{% comment %} -----oodles----- {% endcomment %}
+<script>
+
+
+
+
+{% comment %} new javascript {% endcomment %}
+(function () {
+
+
+
+
+console.log(
+  '[Practitioner Markup] Cart summary script loaded'
+);
+
+
+
+
+/*
+ * ==========================================
+ * LOGGED-IN PRACTITIONER
+ * ==========================================
+ *
+ * Shopify's Liquid customer represents
+ * the logged-in practitioner.
+ */
+const practitioner = {% if customer %}
+  {
+    id: {{ customer.id | json }},
+    email: {{ customer.email | json }},
+    firstName: {{ customer.first_name | json }},
+    lastName: {{ customer.last_name | json }}
+  }
+{% else %}
+  null
+{% endif %};
+
+
+
+
+console.log(
+  '[Practitioner Markup] Practitioner:',
+  practitioner
+);
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * UPDATE ESTIMATED TOTAL
+ * ==========================================
+ *
+ * Markup is stored PER CART LINE:
+ *
+ * item.properties._practitioner_markup
+ *
+ * Example:
+ *
+ * Product A
+ * Base price = $39.99
+ * Markup     = $3.00
+ *
+ * Product B
+ * Base price = $2.20
+ * Markup     = $2.00
+ *
+ * Shopify cart total = $42.19
+ *
+ * Total markup = $5.00
+ *
+ * Estimated customer total = $47.19
+ */
+async function updatePractitionerTotal() {
+
+
+
+
+  try {
+
+
+
+
+    /*
+     * Get the latest cart.
+     */
+    const response = await fetch(
+      window.Shopify.routes.root + 'cart.js',
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        cache: 'no-store'
+      }
+    );
+
+
+
+
+    if (!response.ok) {
+      throw new Error(
+        'Failed to load cart'
+      );
+    }
+
+
+
+
+    const cart = await response.json();
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * BASE CART TOTAL
+     * ======================================
+     *
+     * Shopify returns money in cents.
+     *
+     * Example:
+     * 4219 = $42.19
+     */
+    const baseTotal =
+      Number(cart.total_price || 0) / 100;
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * CALCULATE TOTAL PRACTITIONER MARKUP
+     * ======================================
+     */
+    let totalMarkup = 0;
+
+
+
+
+    if (Array.isArray(cart.items)) {
+
+
+
+
+      cart.items.forEach(function (item) {
+
+
+
+
+        /*
+         * Read markup from this specific
+         * cart line.
+         */
+        const markup =
+          Number.parseFloat(
+            item.properties?._practitioner_markup || '0'
+          );
+
+
+
+
+
+
+
+
+        /*
+         * Ignore invalid/negative values.
+         */
+        if (
+          !Number.isFinite(markup) ||
+          markup <= 0
+        ) {
+          return;
+        }
+
+
+
+
+
+
+
+
+        /*
+         * Markup is PER UNIT.
+         *
+         * Example:
+         *
+         * Quantity = 2
+         * Markup   = $3
+         *
+         * Total markup = $6
+         */
+        totalMarkup +=
+          markup * Number(item.quantity || 0);
+
+
+
+
+      });
+
+
+
+
+    }
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * FINAL DISPLAYED TOTAL
+     * ======================================
+     */
+    const finalTotal =
+      baseTotal + totalMarkup;
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * FIND ESTIMATED TOTAL ELEMENT
+     * ======================================
+     */
+    const totalElement =
+      document.getElementById(
+        'custom-cart-total'
+      );
+
+
+
+
+    if (!totalElement) {
+
+
+
+
+      console.warn(
+        '[Practitioner Markup] #custom-cart-total not found'
+      );
+
+
+
+
+      return;
+    }
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * FORMAT AUD
+     * ======================================
+     */
+    totalElement.textContent =
+      new Intl.NumberFormat('en-AU', {
+        style: 'currency',
+        currency: 'AUD'
+      }).format(finalTotal);
+
+
+
+
+
+
+
+
+    /*
+     * ======================================
+     * DEBUG
+     * ======================================
+     */
+    console.log(
+      '[Practitioner Markup] Total calculation:',
+      {
+        baseTotal,
+        totalMarkup,
+        finalTotal,
+        items: cart.items
+      }
+    );
+
+
+
+
+  } catch (error) {
+
+
+
+
+    console.error(
+      '[Practitioner Markup] Failed to update estimated total:',
+      error
+    );
+
+
+
+
+  }
+
+
+
+
+}
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * INITIALIZE ESTIMATED TOTAL
+ * ==========================================
+ */
+function initializePractitionerTotal() {
+
+
+
+
+  updatePractitionerTotal();
+
+
+
+
+}
+
+
+
+
+
+
+
+
+if (
+  document.readyState === 'loading'
+) {
+
+
+
+
+  document.addEventListener(
+    'DOMContentLoaded',
+    initializePractitionerTotal
+  );
+
+
+
+
+} else {
+
+
+
+
+  initializePractitionerTotal();
+
+
+
+
+}
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * LISTEN FOR PER-LINE MARKUP CHANGES
+ * ==========================================
+ *
+ * These selectors belong to the new
+ * per-line markup UI in cart-products.liquid.
+ */
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * LISTEN FOR + / - MARKUP BUTTONS
+ * ==========================================
+ */
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * EXPOSE TOTAL UPDATE FUNCTION
+ * ==========================================
+ *
+ * cart-products.liquid can call:
+ *
+ * window.updatePractitionerTotal()
+ *
+ * after saving markup.
+ */
+window.updatePractitionerTotal =
+  updatePractitionerTotal;
+
+
+
+
+
+
+
+
+/*
+ * ==========================================
+ * CHECKOUT INTERCEPTION
+ * ==========================================
+ *
+ * Instead of Shopify's normal checkout:
+ *
+ * Cart
+ *   ↓
+ * Backend
+ *   ↓
+ * Draft Order
+ *   ↓
+ * Shopify checkoutUrl
+ */
+const API_BASE_URL =
+  'https://outfit-sauna-glitch.ngrok-free.dev';
+
+
+
+
+  {% comment %} function showCheckoutMessage(message, type) {
+    const messageEl =
+      document.getElementById('checkout-message');
+
+
+
+
+    if (!messageEl) {
+      alert(message);
+      return;
+    }
+
+
+
+
+    messageEl.textContent = message;
+    messageEl.hidden = false;
+    messageEl.dataset.type = type || 'info';
+  } {% endcomment %}
+
+
+
+
+  function showCheckoutMessage(message, type) {
+
+
+
+
+const messageEl =
+  document.getElementById('checkout-message');
+
+
+
+
+console.log(
+  '[Checkout] Showing message:',
+  message,
+  type
+);
+
+
+
+
+if (!messageEl) {
+
+
+
+
+  console.error(
+    '[Checkout] #checkout-message element not found'
+  );
+
+
+
+
+  alert(message);
+  return;
+}
+
+
+
+
+messageEl.textContent = message;
+
+
+
+
+messageEl.dataset.type =
+  type || 'info';
+
+
+
+
+messageEl.hidden = false;
+
+
+
+
+// Force the element to be visible.
+messageEl.style.display = 'block';
+
+
+
+
+// Scroll the message into view.
+messageEl.scrollIntoView({
+  behavior: 'smooth',
+  block: 'center'
+});
+
+
+
+
+console.log(
+  '[Checkout] Message element:',
+  messageEl
+);
+}
+
+
+
+
+document.addEventListener(
+  'submit',
+  async function (event) {
+
+
+
+
+    const form = event.target;
+
+
+
+
+
+
+
+
+    /*
+     * Only intercept the main cart form.
+     */
+    if (
+      !form ||
+      form.id !== 'cart-form'
+    ) {
+      return;
+    }
+
+
+
+
+
+
+
+
+    /*
+     * Stop Shopify's normal checkout.
+     */
+    event.preventDefault();
+
+
+
+
+
+
+
+
+    const checkoutButton =
+      document.querySelector('#checkout');
+
+
+
+
+    const buttonText =
+      checkoutButton?.querySelector(
+        '.button-text'
+      );
+
+
+
+
+
+
+
+
+    try {
+
+
+
+
+/*
+ * ======================================
+ * GET CLIENT EMAIL
+ * ======================================
+ */
+
+
+
+
+const clientEmailInput =
+  document.getElementById('client-email');
+
+
+
+
+const clientEmailError =
+  document.getElementById('client-email-error');
+
+
+
+
+{% comment %} if (!clientEmailInput) {
+  throw new Error(
+    'Client email field is missing.'
+  );
+} {% endcomment %}
+
+
+
+
+const clientEmail =
+  clientEmailInput.value
+    .trim()
+    .toLowerCase();
+
+
+
+
+/*
+ * Clear previous error.
+ */
+clientEmailInput.classList.remove(
+  'client-email-invalid'
+);
+
+
+
+
+if (clientEmailError) {
+  clientEmailError.hidden = true;
+  clientEmailError.textContent = '';
+}
+
+
+
+
+/*
+ * Client email is required.
+ */
+{% comment %} if (!clientEmail) {
+
+
+
+
+  clientEmailInput.classList.add(
+    'client-email-invalid'
+  );
+
+
+
+
+  if (clientEmailError) {
+    clientEmailError.textContent =
+      'Please enter the client email address.';
+    clientEmailError.hidden = false;
+  }
+
+
+
+
+  clientEmailInput.focus();
+
+
+
+
+  throw new Error(
+    'Client email is required.'
+  );
+} {% endcomment %}
+
+
+
+
+/*
+ * Validate email format.
+ */
+if(clientEmailInput) {
+  if (!clientEmailInput.checkValidity()) {
+
+
+
+
+    clientEmailInput.classList.add(
+      'client-email-invalid'
+    );
+
+
+
+
+    if (clientEmailError) {
+      clientEmailError.textContent =
+        'Please enter a valid client email address.';
+      clientEmailError.hidden = false;
+    }
+
+
+
+
+    clientEmailInput.focus();
+
+
+
+
+    throw new Error(
+      'Please enter a valid client email address.'
+    );
+  }
+}
+
+
+
+
+console.log(
+  '[Checkout] Client Email:',
+  clientEmail
+);
+
+
+
+
+
+
+
+
+/*
+ * ======================================
+ * DISABLE CHECKOUT BUTTON
+ * ======================================
+ */
+
+
+
+
+if (checkoutButton) {
+
+
+
+
+  checkoutButton.disabled = true;
+
+
+
+
+}
+
+
+
+
+if (buttonText) {
+
+
+
+
+  buttonText.textContent =
+    'Preparing checkout...';
+
+
+
+
+}
+
+
+
+
+
+
+
+
+      /*
+       * ======================================
+       * REQUIRE PRACTITIONER LOGIN
+       * ======================================
+       */
+      if (!practitioner) {
+
+
+
+
+        throw new Error(
+          'You must be logged in as a practitioner to create an order.'
+        );
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+      /*
+       * ======================================
+       * GET LATEST CART
+       * ======================================
+       */
+      const cartResponse =
+        await fetch(
+          window.Shopify.routes.root + 'cart.js',
+          {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json'
+            },
+            credentials: 'same-origin',
+            cache: 'no-store'
+          }
+        );
+
+
+
+
+
+
+
+
+      if (!cartResponse.ok) {
+
+
+
+
+        throw new Error(
+          'Unable to retrieve cart'
+        );
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+      const cart =
+        await cartResponse.json();
+
+
+
+
+
+
+
+
+      /*
+       * ======================================
+       * BASIC CART VALIDATION
+       * ======================================
+       */
+      if (
+        !Array.isArray(cart.items) ||
+        cart.items.length === 0
+      ) {
+
+
+
+
+        throw new Error(
+          'Your cart is empty.'
+        );
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+      /*
+       * ======================================
+       * LOG CART
+       * ======================================
+       *
+       * IMPORTANT:
+       *
+       * We do NOT read:
+       *
+       * cart.attributes.practitioner_markup
+       *
+       * anymore.
+       *
+       * Each line contains:
+       *
+       * item.properties._practitioner_markup
+       */
+      console.log(
+        '[Checkout] Cart:',
+        cart
+      );
+
+
+
+
+
+
+
+
+      console.log(
+        '[Checkout] Practitioner:',
+        practitioner
+      );
+
+
+
+
+
+
+
+
+      /*
+       * ======================================
+       * SEND CART + PRACTITIONER TO BACKEND
+       * ======================================
+       *
+       * Backend will calculate the final
+       * price from each cart line.
+       */
+      const response =
+        await fetch(
+          `${API_BASE_URL}/api/shopify/create-draft-order`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+
+
+
+
+              cart,
+
+
+
+
+              practitioner,
+
+
+
+
+              clientEmail
+
+
+
+
+            })
+          }
+        );
+
+
+
+
+
+
+
+
+      /*
+       * Try to parse backend response.
+       */
+      const result =
+        await response.json();
+
+
+
+
+      console.log(
+        '[Checkout] BACKEND RESULT:',
+        result
+      );
+
+
+
+
+
+
+
+
+      if (!response.ok) {
+
+
+
+
+        throw new Error(
+          result.message ||
+          'Failed to create checkout'
+        );
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+     /*
+* ======================================
+* CHECK CHECKOUT URL
+* ======================================
+*/
+if (!result.checkoutUrl && !result.invoiceUrl) {
+
+
+
+
+throw new Error(
+  'Shopify checkout URL was not returned'
+);
+
+
+
+
+}
+
+
+
+
+console.log(
+'[Checkout] Draft Order response:',
+result
+);
+
+
+
+
+
+
+
+
+if (result.emailSent === true) {
+
+
+
+
+const email = result.clientEmail || clientEmail;
+
+
+
+
+showCheckoutMessage(
+  email
+    ? `Invoice sent successfully to ${email}`
+    : 'Invoice sent successfully',
+  'success'
+);
+
+
+
+
+// Give the practitioner a moment to see the confirmation.
+setTimeout(() => {
+
+
+
+
+  if (result.checkoutUrl || result.invoiceUrl) {
+
+
+
+
+    window.location.href =
+      result.checkoutUrl || result.invoiceUrl;
+
+
+
+
+  }
+
+
+
+
+}, 3000);
+
+
+
+
+return;
+}
+
+
+
+
+
+
+
+
+if (result.draftOrderCreated === true) {
+
+
+
+
+showCheckoutMessage(
+  'The order was created, but we could not send the invoice email. You will be redirected to checkout.',
+  'error'
+);
+
+
+
+
+setTimeout(() => {
+
+
+
+
+  if (result.checkoutUrl || result.invoiceUrl) {
+
+
+
+
+    window.location.href =
+      result.checkoutUrl || result.invoiceUrl;
+
+
+
+
+  }
+
+
+
+
+}, 3000);
+
+
+
+
+return;
+}
+
+
+
+
+
+
+
+
+throw new Error(
+result.message ||
+'Checkout could not be completed.'
+);
+
+
+
+
+
+
+
+
+    } catch (error) {
+
+
+
+
+      console.error(
+        '[Checkout] Custom checkout error:',
+        error
+      );
+
+
+
+
+
+
+
+
+      alert(
+        error.message ||
+        'Unable to create checkout.'
+      );
+
+
+
+
+
+
+
+
+      /*
+       * Restore checkout button.
+       */
+      if (checkoutButton) {
+
+
+
+
+        checkoutButton.disabled =
+          false;
+
+
+
+
+      }
+
+
+
+
+
+
+
+
+      if (buttonText) {
+
+
+
+
+        buttonText.textContent =
+          'Checkout';
+
+
+
+
+      }
+
+
+
+
+    }
+
+
+
+
+  }
+);
+
+
+
+
+})();
+</script>
+
+
+
+
+{% comment %} -----oodles----- {% endcomment %}
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,1469 @@
+{% comment %}
+ ============================================================
+ PRACTITIONER MARKUP DASHBOARD
+ ============================================================
+
+
+ Backend APIs:
+ GET /api/practitioner/dashboard/summary
+ GET /api/practitioner/dashboard/orders
+ GET /api/practitioner/dashboard/orders/:id
+ GET /api/practitioner/dashboard/export
+
+
+ Auth header:
+ X-Shopify-Customer-Id: {{ customer.id }}
+
+
+ IMPORTANT:
+ - Practitioner identity comes from the logged-in Shopify customer.
+ - Backend validates the customer is an active practitioner.
+ - Do not send practitionerId from URL/query/body.
+ - ngrok-skip-browser-warning is required for free ngrok tunnels
+   so the browser does not receive the HTML interstitial (CORS fails).
+{% endcomment %}
+
+
+<section
+ class="practitioner-dashboard"
+ data-practitioner-dashboard
+ data-api-base-url="https://outfit-sauna-glitch.ngrok-free.dev"
+ {% if customer %}
+   data-shopify-customer-id="{{ customer.id }}"
+ {% endif %}
+>
+ {% unless customer %}
+   <div class="practitioner-dashboard__auth-message">
+     <h1>Practitioner Markup Dashboard</h1>
+     <p>Please log in to access your practitioner dashboard.</p>
+   </div>
+ {% else %}
+   <div class="practitioner-dashboard__header">
+     <div class="practitioner-dashboard__heading">
+       <p class="practitioner-dashboard__eyebrow">Practitioner</p>
+       <h1 class="practitioner-dashboard__title">Markup Dashboard</h1>
+       <p class="practitioner-dashboard__subtitle">
+         View your orders, customer sales and markup earnings.
+       </p>
+     </div>
+
+
+     <button type="button" class="practitioner-dashboard__export" data-export>
+       Export CSV
+     </button>
+   </div>
+
+
+   <div
+     class="practitioner-dashboard__message"
+     data-message
+     hidden
+     role="alert"
+   ></div>
+
+
+   <div class="practitioner-dashboard__cards">
+     {% comment %} <div class="practitioner-dashboard__card">
+       <span class="practitioner-dashboard__card-label">Customer Sales</span>
+       <strong class="practitioner-dashboard__card-value" data-total-sales>—</strong>
+     </div> {% endcomment %}
+
+
+     <div class="practitioner-dashboard__card">
+       <span class="practitioner-dashboard__card-label">Markup Earnings</span>
+       <strong class="practitioner-dashboard__card-value" data-total-markup>—</strong>
+     </div>
+
+
+     <div class="practitioner-dashboard__card">
+       <span class="practitioner-dashboard__card-label">Pending Earnings</span>
+       <strong class="practitioner-dashboard__card-value" data-pending-earnings>—</strong>
+     </div>
+
+
+     <div class="practitioner-dashboard__card">
+       <span class="practitioner-dashboard__card-label">Paid Earnings</span>
+       <strong class="practitioner-dashboard__card-value" data-paid-earnings>—</strong>
+     </div>
+   </div>
+
+
+   <div class="practitioner-dashboard__panel">
+     <div class="practitioner-dashboard__filters">
+       <div class="practitioner-dashboard__field">
+         <label for="practitioner-status">Status</label>
+         <select id="practitioner-status" data-filter-status>
+           <option value="">All statuses</option>
+           <option value="PENDING">Pending</option>
+           <option value="PAID">Paid</option>
+           <option value="CANCELLED">Cancelled</option>
+         </select>
+       </div>
+
+
+       <div class="practitioner-dashboard__field practitioner-dashboard__field--search">
+         <label for="practitioner-order-search">Search</label>
+         <input
+           id="practitioner-order-search"
+           type="search"
+           placeholder="Order number or client email"
+           autocomplete="off"
+           data-filter-search
+         >
+       </div>
+
+
+       <button type="button" class="practitioner-dashboard__apply" data-apply-filters>
+         {% comment %} Search {% endcomment %}
+          Apply
+       </button>
+     </div>
+
+
+     <div class="practitioner-dashboard__table-wrap">
+       <table class="practitioner-dashboard__table">
+         <thead>
+           <tr>
+             <th>Date</th>
+             <th>Order</th>
+             <th>Client</th>
+             <th>Products</th>
+             <th>Customer Total</th>
+             <th>Markup</th>
+             <th>Status</th>
+           </tr>
+         </thead>
+         <tbody data-orders-body>
+           <tr>
+             <td colspan="7" class="practitioner-dashboard__empty">
+               Loading orders...
+             </td>
+           </tr>
+         </tbody>
+       </table>
+     </div>
+
+
+     <div class="practitioner-dashboard__pagination">
+       <button
+         type="button"
+         class="practitioner-dashboard__page-button"
+         data-prev-page
+         disabled
+       >
+         Previous
+       </button>
+
+
+       <span data-page-info>Page 1 of 1 · 0 orders</span>
+
+
+       <button
+         type="button"
+         class="practitioner-dashboard__page-button"
+         data-next-page
+         disabled
+       >
+         Next
+       </button>
+     </div>
+   </div>
+
+
+   <dialog class="practitioner-dashboard__dialog" data-order-dialog>
+     <div class="practitioner-dashboard__dialog-inner">
+       <button
+         type="button"
+         class="practitioner-dashboard__dialog-close"
+         aria-label="Close"
+         data-close-dialog
+       >
+         ×
+       </button>
+       <div data-order-details>Loading...</div>
+     </div>
+   </dialog>
+ {% endunless %}
+</section>
+
+
+<style>
+.practitioner-dashboard {
+ --dashboard-burgundy: #74133f;
+ --dashboard-yellow: #dfd14e;
+ --dashboard-border: #d7b9c5;
+ --dashboard-text: #351a29;
+ --dashboard-muted: #6f6268;
+ --dashboard-success: #2e6b3e;
+ --dashboard-warning: #9a6a00;
+
+
+ width: 100%;
+ max-width: 1400px;
+ margin: 0 auto;
+ padding: 50px 34px 80px;
+ color: var(--dashboard-text);
+ box-sizing: border-box;
+}
+
+
+.practitioner-dashboard *,
+.practitioner-dashboard *::before,
+.practitioner-dashboard *::after {
+ box-sizing: border-box;
+}
+
+
+.practitioner-dashboard__auth-message {
+ max-width: 600px;
+ margin: 60px auto;
+ padding: 40px;
+ border: 1px solid var(--dashboard-border);
+ border-radius: 12px;
+ text-align: center;
+ background: #fff;
+}
+
+
+.practitioner-dashboard__auth-message h1 {
+ margin: 0 0 12px;
+ color: var(--dashboard-burgundy);
+}
+
+
+.practitioner-dashboard__auth-message p {
+ margin: 0;
+ color: var(--dashboard-muted);
+}
+
+
+.practitioner-dashboard__header {
+ display: flex;
+ align-items: flex-end;
+ justify-content: space-between;
+ gap: 24px;
+ margin-bottom: 30px;
+}
+
+
+.practitioner-dashboard__eyebrow {
+ margin: 0 0 6px;
+ color: var(--dashboard-burgundy);
+ font-size: 12px;
+ font-weight: 700;
+ letter-spacing: .12em;
+ text-transform: uppercase;
+}
+
+
+.practitioner-dashboard__title {
+ margin: 0;
+ color: var(--dashboard-burgundy);
+ font-size: clamp(38px, 5vw, 62px);
+ line-height: .95;
+ font-weight: 500;
+}
+
+
+.practitioner-dashboard__subtitle {
+ margin: 15px 0 0;
+ font-size: 15px;
+ color: var(--dashboard-muted);
+}
+
+
+.practitioner-dashboard__export,
+.practitioner-dashboard__apply {
+ border: 0;
+ border-radius: 999px;
+ padding: 13px 25px;
+ background: var(--dashboard-yellow);
+ color: var(--dashboard-burgundy);
+ font: inherit;
+ font-weight: 700;
+ cursor: pointer;
+ white-space: nowrap;
+}
+
+
+.practitioner-dashboard__export:hover,
+.practitioner-dashboard__apply:hover {
+ filter: brightness(.95);
+}
+
+
+.practitioner-dashboard__export:disabled,
+.practitioner-dashboard__apply:disabled {
+ opacity: .55;
+ cursor: not-allowed;
+}
+
+
+.practitioner-dashboard__message {
+ margin-bottom: 20px;
+ padding: 14px 16px;
+ border: 1px solid var(--dashboard-border);
+ border-radius: 8px;
+ background: #fff;
+ font-size: 14px;
+}
+
+
+.practitioner-dashboard__message[data-type="error"] {
+ border-color: #d9a8a8;
+}
+
+
+.practitioner-dashboard__message[data-type="success"] {
+ border-color: #a9c9b1;
+}
+
+
+.practitioner-dashboard__cards {
+ display: grid;
+ grid-template-columns: repeat(3, minmax(0, 1fr));
+ gap: 16px;
+ margin-bottom: 35px;
+}
+
+
+.practitioner-dashboard__card {
+ min-width: 0;
+ padding: 24px;
+ border: 1px solid var(--dashboard-border);
+ border-radius: 10px;
+ background: #fff;
+}
+
+
+.practitioner-dashboard__card-label {
+ display: block;
+ margin-bottom: 12px;
+ color: var(--dashboard-burgundy);
+ font-size: 13px;
+ font-weight: 600;
+}
+
+
+.practitioner-dashboard__card-value {
+ display: block;
+ font-size: 28px;
+ line-height: 1.1;
+ font-weight: 500;
+ word-break: break-word;
+}
+
+
+.practitioner-dashboard__panel {
+ border-top: 1px solid var(--dashboard-border);
+}
+
+
+.practitioner-dashboard__filters {
+ display: grid;
+ grid-template-columns: 180px minmax(220px, 1fr) auto;
+ gap: 12px;
+ align-items: end;
+ padding: 22px 0;
+ border-bottom: 1px solid var(--dashboard-border);
+}
+
+
+.practitioner-dashboard__field {
+ min-width: 0;
+}
+
+
+.practitioner-dashboard__field label {
+ display: block;
+ margin-bottom: 7px;
+ color: var(--dashboard-burgundy);
+ font-size: 12px;
+ font-weight: 700;
+}
+
+
+.practitioner-dashboard__field input,
+.practitioner-dashboard__field select {
+ width: 100%;
+ min-height: 44px;
+ border: 1px solid var(--dashboard-border);
+ border-radius: 6px;
+ padding: 10px 12px;
+ background: #fff;
+ color: var(--dashboard-text);
+ font: inherit;
+}
+
+
+.practitioner-dashboard__field input:focus,
+.practitioner-dashboard__field select:focus {
+ outline: 2px solid rgba(116, 19, 63, .15);
+ outline-offset: 1px;
+}
+
+
+.practitioner-dashboard__table-wrap {
+ width: 100%;
+ overflow-x: auto;
+}
+
+
+.practitioner-dashboard__table {
+ width: 100%;
+ min-width: 900px;
+ border-collapse: collapse;
+}
+
+
+.practitioner-dashboard__table th,
+.practitioner-dashboard__table td {
+ padding: 18px 12px;
+ border-bottom: 1px solid var(--dashboard-border);
+ text-align: left;
+ vertical-align: middle;
+ font-size: 14px;
+}
+
+
+.practitioner-dashboard__table th {
+ color: var(--dashboard-burgundy);
+ font-size: 12px;
+ font-weight: 700;
+ text-transform: uppercase;
+ letter-spacing: .05em;
+}
+
+
+.practitioner-dashboard__table tbody tr[data-order-id] {
+ cursor: pointer;
+}
+
+
+.practitioner-dashboard__table tbody tr[data-order-id]:hover {
+ background: rgba(116, 19, 63, .035);
+}
+
+
+.practitioner-dashboard__order-number {
+ color: var(--dashboard-burgundy);
+ font-weight: 700;
+}
+
+
+.practitioner-dashboard__products {
+ line-height: 1.6;
+}
+
+
+.practitioner-dashboard__product-count {
+ color: var(--dashboard-muted);
+ font-size: 12px;
+}
+
+
+.practitioner-dashboard__status {
+ display: inline-flex;
+ align-items: center;
+ padding: 6px 10px;
+ border-radius: 999px;
+ background: #f0ecee;
+ color: var(--dashboard-burgundy);
+ font-size: 11px;
+ font-weight: 700;
+ white-space: nowrap;
+}
+
+
+.practitioner-dashboard__status-group {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 6px;
+}
+
+
+.practitioner-dashboard__status--paid {
+ background: #e9f4ec;
+ color: var(--dashboard-success);
+}
+
+
+.practitioner-dashboard__status--pending {
+ background: #fff5dc;
+ color: var(--dashboard-warning);
+}
+
+
+.practitioner-dashboard__status--cancelled {
+ background: #f5e5e5;
+ color: #9b2c2c;
+}
+
+
+.practitioner-dashboard__status--invoice {
+ background: #eee8f4;
+ color: var(--dashboard-burgundy);
+}
+
+
+.practitioner-dashboard__empty {
+ padding: 45px 12px !important;
+ text-align: center !important;
+ color: var(--dashboard-muted);
+}
+
+
+.practitioner-dashboard__pagination {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 18px;
+ padding-top: 22px;
+ font-size: 13px;
+}
+
+
+.practitioner-dashboard__page-button {
+ border: 1px solid var(--dashboard-border);
+ border-radius: 999px;
+ padding: 9px 17px;
+ background: #fff;
+ color: var(--dashboard-burgundy);
+ font: inherit;
+ cursor: pointer;
+}
+
+
+.practitioner-dashboard__page-button:hover:not(:disabled) {
+ background: #faf6f8;
+}
+
+
+.practitioner-dashboard__page-button:disabled {
+ opacity: .45;
+ cursor: not-allowed;
+}
+
+
+.practitioner-dashboard__dialog {
+ width: min(820px, calc(100vw - 32px));
+ max-height: 85vh;
+ padding: 0;
+ border: 0;
+ border-radius: 12px;
+ overflow: hidden;
+}
+
+
+.practitioner-dashboard__dialog::backdrop {
+ background: rgba(0, 0, 0, .45);
+}
+
+
+.practitioner-dashboard__dialog-inner {
+ position: relative;
+ max-height: 85vh;
+ overflow-y: auto;
+ padding: 35px;
+ background: #fff;
+}
+
+
+.practitioner-dashboard__dialog-close {
+ position: absolute;
+ top: 10px;
+ right: 15px;
+ z-index: 2;
+ border: 0;
+ background: transparent;
+ color: var(--dashboard-text);
+ font-size: 28px;
+ line-height: 1;
+ cursor: pointer;
+}
+
+
+.practitioner-dashboard__dialog h2 {
+ margin: 0 40px 25px 0;
+ color: var(--dashboard-burgundy);
+ font-size: 30px;
+}
+
+
+.practitioner-dashboard__detail-grid {
+ display: grid;
+ grid-template-columns: repeat(2, minmax(0, 1fr));
+ gap: 12px 24px;
+ margin-bottom: 28px;
+}
+
+
+.practitioner-dashboard__detail-item {
+ padding: 12px 0;
+ border-bottom: 1px solid var(--dashboard-border);
+}
+
+
+.practitioner-dashboard__detail-label {
+ display: block;
+ margin-bottom: 4px;
+ color: var(--dashboard-muted);
+ font-size: 12px;
+}
+
+
+.practitioner-dashboard__detail-value {
+ display: block;
+ font-size: 15px;
+ font-weight: 600;
+}
+
+
+.practitioner-dashboard__detail-table-wrap {
+ width: 100%;
+ overflow-x: auto;
+}
+
+
+.practitioner-dashboard__detail-table {
+ width: 100%;
+ min-width: 650px;
+ border-collapse: collapse;
+}
+
+
+.practitioner-dashboard__detail-table th,
+.practitioner-dashboard__detail-table td {
+ padding: 12px 10px;
+ border-bottom: 1px solid var(--dashboard-border);
+ text-align: left;
+ font-size: 13px;
+}
+
+
+.practitioner-dashboard__detail-table th {
+ color: var(--dashboard-burgundy);
+ font-size: 11px;
+ text-transform: uppercase;
+}
+
+
+.practitioner-dashboard__detail-totals {
+ display: grid;
+ grid-template-columns: repeat(3, 1fr);
+ gap: 12px;
+ margin-top: 25px;
+}
+
+
+.practitioner-dashboard__detail-total {
+ padding: 15px;
+ border: 1px solid var(--dashboard-border);
+ border-radius: 8px;
+ background: #faf8f9;
+}
+
+
+.practitioner-dashboard__detail-total-label {
+ display: block;
+ margin-bottom: 5px;
+ color: var(--dashboard-muted);
+ font-size: 12px;
+}
+
+
+.practitioner-dashboard__detail-total-value {
+ display: block;
+ color: var(--dashboard-burgundy);
+ font-size: 18px;
+ font-weight: 700;
+}
+
+
+@media (max-width: 1100px) {
+ .practitioner-dashboard__cards {
+   grid-template-columns: repeat(3, minmax(0, 1fr));
+ }
+
+
+ .practitioner-dashboard__filters {
+   grid-template-columns: 180px minmax(0, 1fr) auto;
+ }
+
+
+ .practitioner-dashboard__apply {
+   width: 100%;
+ }
+}
+
+
+@media (max-width: 700px) {
+ .practitioner-dashboard {
+   padding: 35px 18px 60px;
+ }
+
+
+ .practitioner-dashboard__header {
+   align-items: flex-start;
+   flex-direction: column;
+ }
+
+
+ .practitioner-dashboard__title {
+   font-size: 42px;
+ }
+
+
+ .practitioner-dashboard__export {
+   width: 100%;
+ }
+
+
+ .practitioner-dashboard__cards {
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+ }
+
+
+ .practitioner-dashboard__filters {
+   grid-template-columns: 1fr;
+ }
+
+
+ .practitioner-dashboard__apply {
+   width: 100%;
+ }
+
+
+ .practitioner-dashboard__detail-grid {
+   grid-template-columns: 1fr;
+ }
+
+
+ .practitioner-dashboard__detail-totals {
+   grid-template-columns: 1fr;
+ }
+}
+
+
+@media (max-width: 480px) {
+ .practitioner-dashboard__cards {
+   grid-template-columns: 1fr;
+ }
+
+
+ .practitioner-dashboard__pagination {
+   gap: 10px;
+   flex-wrap: wrap;
+ }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+ .practitioner-dashboard *,
+ .practitioner-dashboard *::before,
+ .practitioner-dashboard *::after {
+   scroll-behavior: auto !important;
+ }
+}
+</style>
+
+
+{% if customer %}
+<script>
+(() => {
+ const root = document.querySelector('[data-practitioner-dashboard]');
+ if (!root || root.dataset.initialized === 'true') return;
+ root.dataset.initialized = 'true';
+
+
+ const API_BASE_URL = (
+   root.dataset.apiBaseUrl ||
+   'https://outfit-sauna-glitch.ngrok-free.dev'
+ ).replace(/\/$/, '');
+ const SHOPIFY_CUSTOMER_ID = String(root.dataset.shopifyCustomerId || '').trim();
+
+
+ const API = {
+   summary: `${API_BASE_URL}/api/practitioner/dashboard/summary`,
+   orders: `${API_BASE_URL}/api/practitioner/dashboard/orders`,
+   export: `${API_BASE_URL}/api/practitioner/dashboard/export`,
+ };
+
+
+ const state = {
+   page: 1,
+   limit: 20,
+   totalPages: 0,
+   loading: false,
+ };
+
+
+ const $ = (selector) => root.querySelector(selector);
+
+
+ // ngrok-skip-browser-warning is required on free ngrok so Chrome
+ // does not get the HTML interstitial (200 OK with no CORS headers).
+ const authHeaders = (accept) => ({
+   Accept: accept,
+   'X-Shopify-Customer-Id': SHOPIFY_CUSTOMER_ID,
+   'ngrok-skip-browser-warning': 'true',
+ });
+
+
+ const formatMoney = (value, currency = 'AUD') => {
+   const numericValue = Number(value);
+   const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+
+
+   try {
+     return new Intl.NumberFormat('en-AU', {
+       style: 'currency',
+       currency: currency || 'AUD',
+       minimumFractionDigits: 2,
+       maximumFractionDigits: 2,
+     }).format(safeValue);
+   } catch (error) {
+     return `${currency || 'AUD'} ${safeValue.toFixed(2)}`;
+   }
+ };
+
+
+ const formatDate = (value) => {
+   if (!value) return '—';
+   const parsed = new Date(value);
+   if (Number.isNaN(parsed.getTime())) return '—';
+
+
+   return new Intl.DateTimeFormat('en-AU', {
+     day: '2-digit',
+     month: 'short',
+     year: 'numeric',
+   }).format(parsed);
+ };
+
+
+ const formatDateTime = (value) => {
+   if (!value) return '—';
+   const parsed = new Date(value);
+   if (Number.isNaN(parsed.getTime())) return '—';
+
+
+   return new Intl.DateTimeFormat('en-AU', {
+     day: '2-digit',
+     month: 'short',
+     year: 'numeric',
+     hour: '2-digit',
+     minute: '2-digit',
+   }).format(parsed);
+ };
+
+
+ const escapeHtml = (value) =>
+   String(value ?? '')
+     .replace(/&/g, '&amp;')
+     .replace(/</g, '&lt;')
+     .replace(/>/g, '&gt;')
+     .replace(/"/g, '&quot;')
+     .replace(/'/g, '&#039;');
+
+
+ const formatStatus = (status) => {
+   if (!status) return 'Unknown';
+   return String(status)
+     .replaceAll('_', ' ')
+     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+ };
+
+
+ const getStatusClass = (status) => {
+   if (status === 'PAID') return 'practitioner-dashboard__status--paid';
+   if (status === 'PENDING') return 'practitioner-dashboard__status--pending';
+   if (status === 'CANCELLED') return 'practitioner-dashboard__status--cancelled';
+   return '';
+ };
+
+
+ const getInvoiceBadge = (invoiceSent) => {
+   if (!invoiceSent) return '';
+   return `
+     <span class="practitioner-dashboard__status practitioner-dashboard__status--invoice">
+       Invoice Sent
+     </span>
+   `;
+ };
+
+
+ const showMessage = (text, type = 'error') => {
+   const message = $('[data-message]');
+   if (!message) return;
+   message.textContent = text || '';
+   message.dataset.type = type;
+   message.hidden = !text;
+ };
+
+
+ const clearMessage = () => {
+   const message = $('[data-message]');
+   if (!message) return;
+   message.textContent = '';
+   message.hidden = true;
+   delete message.dataset.type;
+ };
+
+
+ const buildParams = (includePagination = true) => {
+   const params = new URLSearchParams();
+
+
+   if (includePagination) {
+     params.set('page', String(state.page));
+     params.set('limit', String(state.limit));
+   }
+
+
+   const status = $('[data-filter-status]')?.value || '';
+   const search = ($('[data-filter-search]')?.value || '').trim();
+
+
+   if (status) params.set('status', status);
+   if (search) params.set('search', search);
+
+
+   return params;
+ };
+
+
+ const fetchJson = async (url) => {
+   if (!API_BASE_URL) {
+     throw new Error('Dashboard API URL is not configured.');
+   }
+
+
+   if (!SHOPIFY_CUSTOMER_ID) {
+     throw new Error('Unauthenticated practitioner');
+   }
+
+
+   const response = await fetch(url, {
+     method: 'GET',
+     credentials: 'omit',
+     headers: authHeaders('application/json'),
+   });
+
+
+   const rawText = await response.text();
+   let data = null;
+
+
+   if (rawText) {
+     try {
+       data = JSON.parse(rawText);
+     } catch (parseError) {
+       throw new Error(
+         'Backend returned invalid JSON. Check API URL / ngrok tunnel.'
+       );
+     }
+   }
+
+
+   if (!response.ok) {
+     throw new Error(
+       data?.message || data?.error || `Request failed (${response.status})`
+     );
+   }
+
+
+   return data || {};
+ };
+
+
+ const getResponseData = (response) => {
+   if (
+     response &&
+     typeof response === 'object' &&
+     response.data &&
+     typeof response.data === 'object'
+   ) {
+     return response.data;
+   }
+   return response || {};
+ };
+
+
+ const loadSummary = async () => {
+   const params = buildParams(false);
+   const response = await fetchJson(`${API.summary}?${params.toString()}`);
+   const data = getResponseData(response);
+   const currency = data.currency || 'AUD';
+
+
+   const totalSalesElement = $('[data-total-sales]');
+   if (totalSalesElement) {
+     totalSalesElement.textContent = formatMoney(data.totalSales, currency);
+   }
+
+
+   const totalMarkupElement = $('[data-total-markup]');
+   if (totalMarkupElement) {
+     totalMarkupElement.textContent = formatMoney(data.totalMarkup, currency);
+   }
+
+
+   const pendingEarningsElement = $('[data-pending-earnings]');
+   if (pendingEarningsElement) {
+     pendingEarningsElement.textContent = formatMoney(
+       data.pendingEarnings,
+       currency
+     );
+   }
+
+
+   const paidEarningsElement = $('[data-paid-earnings]');
+   if (paidEarningsElement) {
+     paidEarningsElement.textContent = formatMoney(data.paidEarnings, currency);
+   }
+ };
+
+
+ const loadOrders = async () => {
+   const body = $('[data-orders-body]');
+   if (!body) return;
+
+
+   body.innerHTML = `
+     <tr>
+       <td colspan="7" class="practitioner-dashboard__empty">
+         Loading orders...
+       </td>
+     </tr>
+   `;
+
+
+   const params = buildParams(true);
+   const response = await fetchJson(`${API.orders}?${params.toString()}`);
+   const data = getResponseData(response);
+   const orders = Array.isArray(data.orders) ? data.orders : [];
+   const pagination = data.pagination || {};
+
+
+   const currentPage = Number(pagination.page || state.page);
+   const totalPages = Number(pagination.totalPages || 0);
+   const total = Number(pagination.total || 0);
+
+
+   state.page = currentPage;
+   state.totalPages = totalPages;
+
+
+   if (!orders.length) {
+     body.innerHTML = `
+       <tr>
+         <td colspan="7" class="practitioner-dashboard__empty">
+           No orders found for the selected filters.
+         </td>
+       </tr>
+     `;
+   } else {
+     body.innerHTML = orders
+       .map((order) => {
+         const items = Array.isArray(order.items) ? order.items : [];
+         const productText = items
+           .map((item) => {
+             const title = escapeHtml(item.productTitle || 'Product');
+             const quantity = Number(item.quantity || 0);
+             return `<span>${title} × ${quantity}</span>`;
+           })
+           .join('<br>');
+
+
+         const orderNumber =
+           order.orderNumber ||
+           order.shopifyOrderName ||
+           order.shopifyDraftOrderName ||
+           order.id ||
+           '—';
+
+
+         const status = String(order.paymentStatus || '');
+         const statusClass = getStatusClass(status);
+
+
+         return `
+           <tr
+             data-order-id="${escapeHtml(order.id)}"
+             tabindex="0"
+             role="button"
+             aria-label="View order ${escapeHtml(orderNumber)}"
+           >
+             <td>${formatDate(order.date || order.createdAt)}</td>
+             <td>
+               <strong class="practitioner-dashboard__order-number">
+                 ${escapeHtml(orderNumber)}
+               </strong>
+             </td>
+             <td>${escapeHtml(order.clientEmail || '—')}</td>
+             <td>
+               <div class="practitioner-dashboard__products">
+                 ${productText || '—'}
+               </div>
+               ${
+                 items.length > 1
+                   ? `<span class="practitioner-dashboard__product-count">${items.length} products</span>`
+                   : ''
+               }
+             </td>
+             <td>${formatMoney(order.finalTotal, order.currency || 'AUD')}</td>
+             <td>${formatMoney(order.markupTotal, order.currency || 'AUD')}</td>
+             <td>
+               <div class="practitioner-dashboard__status-group">
+                 <span class="practitioner-dashboard__status ${statusClass}">
+                   ${escapeHtml(formatStatus(status))}
+                 </span>
+                 ${getInvoiceBadge(Boolean(order.invoiceSent))}
+               </div>
+             </td>
+           </tr>
+         `;
+       })
+       .join('');
+   }
+
+
+   const pageInfo = $('[data-page-info]');
+   if (pageInfo) {
+     pageInfo.textContent = `Page ${currentPage || 1} of ${Math.max(
+       totalPages,
+       1
+     )} · ${total} orders`;
+   }
+
+
+   const previousButton = $('[data-prev-page]');
+   if (previousButton) {
+     previousButton.disabled = currentPage <= 1 || totalPages <= 0;
+   }
+
+
+   const nextButton = $('[data-next-page]');
+   if (nextButton) {
+     nextButton.disabled = totalPages <= 0 || currentPage >= totalPages;
+   }
+
+
+   body.querySelectorAll('[data-order-id]').forEach((row) => {
+     row.addEventListener('click', () => openOrder(row.dataset.orderId));
+     row.addEventListener('keydown', (event) => {
+       if (event.key === 'Enter' || event.key === ' ') {
+         event.preventDefault();
+         openOrder(row.dataset.orderId);
+       }
+     });
+   });
+ };
+
+
+ const openOrder = async (orderId) => {
+   if (!orderId) return;
+
+
+   const dialog = $('[data-order-dialog]');
+   const details = $('[data-order-details]');
+   if (!dialog || !details) return;
+
+
+   if (typeof dialog.showModal === 'function') {
+     dialog.showModal();
+   } else {
+     dialog.setAttribute('open', '');
+   }
+
+
+   details.innerHTML = '<p>Loading order details...</p>';
+
+
+   try {
+     const response = await fetchJson(
+       `${API.orders}/${encodeURIComponent(orderId)}`
+     );
+     const data = getResponseData(response);
+     const currency = data.currency || 'AUD';
+     const items = Array.isArray(data.items) ? data.items : [];
+     const status = String(data.paymentStatus || '');
+     const orderNumber = data.orderNumber || data.id || 'Order';
+
+
+     const itemRows = items.length
+       ? items
+           .map(
+             (item) => `
+               <tr>
+                 <td>${escapeHtml(item.productTitle || 'Product')}</td>
+                 <td>${escapeHtml(item.sku || '—')}</td>
+                 <td>${Number(item.quantity || 0)}</td>
+                 <td>${formatMoney(item.baseUnitPrice, currency)}</td>
+                 <td>${formatMoney(item.markupPerUnit, currency)}</td>
+                 <td>${formatMoney(item.finalUnitPrice, currency)}</td>
+                 <td>${formatMoney(item.finalLineTotal, currency)}</td>
+               </tr>
+             `
+           )
+           .join('')
+       : `
+           <tr>
+             <td colspan="7" class="practitioner-dashboard__empty">
+               No items found.
+             </td>
+           </tr>
+         `;
+
+
+     details.innerHTML = `
+       <h2>${escapeHtml(orderNumber)}</h2>
+
+
+       <div class="practitioner-dashboard__detail-grid">
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Order Date</span>
+           <span class="practitioner-dashboard__detail-value">${formatDateTime(data.date)}</span>
+         </div>
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Draft Order</span>
+           <span class="practitioner-dashboard__detail-value">${escapeHtml(data.draftOrderNumber || '—')}</span>
+         </div>
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Client</span>
+           <span class="practitioner-dashboard__detail-value">${escapeHtml(data.clientEmail || '—')}</span>
+         </div>
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Payment Status</span>
+           <span class="practitioner-dashboard__status ${getStatusClass(status)}">
+             ${escapeHtml(formatStatus(status))}
+           </span>
+         </div>
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Invoice</span>
+           <span class="practitioner-dashboard__detail-value">
+             ${data.invoiceSent
+               ? '<span class="practitioner-dashboard__status practitioner-dashboard__status--invoice">Invoice Sent</span>'
+               : 'Not Sent'}
+           </span>
+         </div>
+         <div class="practitioner-dashboard__detail-item">
+           <span class="practitioner-dashboard__detail-label">Paid Date</span>
+           <span class="practitioner-dashboard__detail-value">${formatDateTime(data.paidAt)}</span>
+         </div>
+       </div>
+
+
+       <div class="practitioner-dashboard__detail-table-wrap">
+         <table class="practitioner-dashboard__detail-table">
+           <thead>
+             <tr>
+               <th>Product</th>
+               <th>SKU</th>
+               <th>Qty</th>
+               <th>Base Unit</th>
+               <th>Markup / Unit</th>
+               <th>Final Unit</th>
+               <th>Final Total</th>
+             </tr>
+           </thead>
+           <tbody>${itemRows}</tbody>
+         </table>
+       </div>
+
+
+       <div class="practitioner-dashboard__detail-totals">
+         <div class="practitioner-dashboard__detail-total">
+           <span class="practitioner-dashboard__detail-total-label">Base / Wholesale Total</span>
+           <strong class="practitioner-dashboard__detail-total-value">${formatMoney(data.baseTotal, currency)}</strong>
+         </div>
+         <div class="practitioner-dashboard__detail-total">
+           <span class="practitioner-dashboard__detail-total-label">Markup Earnings</span>
+           <strong class="practitioner-dashboard__detail-total-value">${formatMoney(data.markupTotal, currency)}</strong>
+         </div>
+         <div class="practitioner-dashboard__detail-total">
+           <span class="practitioner-dashboard__detail-total-label">Customer Total</span>
+           <strong class="practitioner-dashboard__detail-total-value">${formatMoney(data.finalTotal, currency)}</strong>
+         </div>
+       </div>
+     `;
+   } catch (error) {
+     details.innerHTML = `<p>${escapeHtml(error.message || 'Unable to load order details.')}</p>`;
+   }
+ };
+
+
+ const closeOrderDialog = () => {
+   const dialog = $('[data-order-dialog]');
+   if (!dialog) return;
+
+
+   if (typeof dialog.close === 'function') {
+     dialog.close();
+   } else {
+     dialog.removeAttribute('open');
+   }
+ };
+
+
+ const loadDashboard = async () => {
+   if (state.loading) return;
+   state.loading = true;
+   clearMessage();
+
+
+   try {
+     await Promise.all([loadSummary(), loadOrders()]);
+   } catch (error) {
+     showMessage(error.message || 'Unable to load dashboard.', 'error');
+   } finally {
+     state.loading = false;
+   }
+ };
+
+
+ $('[data-apply-filters]')?.addEventListener('click', () => {
+   state.page = 1;
+   loadDashboard();
+ });
+
+
+ $('[data-prev-page]')?.addEventListener('click', () => {
+   if (state.page <= 1) return;
+   state.page -= 1;
+   loadOrders().catch((error) => {
+     showMessage(error.message || 'Unable to load previous page.', 'error');
+   });
+ });
+
+
+ $('[data-next-page]')?.addEventListener('click', () => {
+   if (state.page >= state.totalPages) return;
+   state.page += 1;
+   loadOrders().catch((error) => {
+     showMessage(error.message || 'Unable to load next page.', 'error');
+   });
+ });
+
+
+ $('[data-close-dialog]')?.addEventListener('click', closeOrderDialog);
+
+
+ $('[data-order-dialog]')?.addEventListener('click', (event) => {
+   if (event.target === event.currentTarget) closeOrderDialog();
+ });
+
+
+ document.addEventListener('keydown', (event) => {
+   if (event.key !== 'Escape') return;
+   const dialog = $('[data-order-dialog]');
+   if (dialog && dialog.open) closeOrderDialog();
+ });
+
+
+ $('[data-export]')?.addEventListener('click', async () => {
+   const exportButton = $('[data-export]');
+   if (!exportButton) return;
+
+
+   if (!API_BASE_URL) {
+     showMessage('Dashboard API URL is not configured.', 'error');
+     return;
+   }
+
+
+   if (!SHOPIFY_CUSTOMER_ID) {
+     showMessage('Unauthenticated practitioner', 'error');
+     return;
+   }
+
+
+   clearMessage();
+   const originalText = exportButton.textContent;
+   exportButton.disabled = true;
+   exportButton.textContent = 'Exporting...';
+
+
+   try {
+     const params = buildParams(false);
+     const response = await fetch(`${API.export}?${params.toString()}`, {
+       method: 'GET',
+       credentials: 'omit',
+       headers: authHeaders('text/csv'),
+     });
+
+
+     if (!response.ok) {
+       let message = `Export failed (${response.status})`;
+       try {
+         const errorText = await response.text();
+         if (errorText) {
+           try {
+             const errorData = JSON.parse(errorText);
+             message = errorData?.message || errorData?.error || message;
+           } catch (parseError) {
+             if (errorText.length < 500) message = errorText;
+           }
+         }
+       } catch (readError) {
+         // keep default message
+       }
+       throw new Error(message);
+     }
+
+
+     const blob = await response.blob();
+     if (!blob.size) throw new Error('The export file is empty.');
+
+
+     let filename = 'practitioner-earnings.csv';
+     const disposition = response.headers.get('content-disposition');
+     if (disposition) {
+       const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+       if (filenameMatch?.[1]) filename = filenameMatch[1];
+     }
+
+
+     const url = URL.createObjectURL(blob);
+     const link = document.createElement('a');
+     link.href = url;
+     link.download = filename;
+     document.body.appendChild(link);
+     link.click();
+     link.remove();
+     URL.revokeObjectURL(url);
+
+
+     showMessage('CSV export downloaded successfully.', 'success');
+     setTimeout(clearMessage, 3000);
+   } catch (error) {
+     showMessage(error.message || 'Unable to export CSV.', 'error');
+   } finally {
+     exportButton.disabled = false;
+     exportButton.textContent = originalText;
+   }
+ });
+
+
+ loadDashboard();
+})();
+</script>
+{% endif %}
+
+
+{% schema %}
+{
+ "name": "Markup Dashboard",
+ "settings": [],
+ "presets": [
+   {
+     "name": "Markup Dashboard"
+   }
+ ]
+}
+{% endschema %}
+
+
+
